@@ -47,3 +47,31 @@ CREATE TABLE dbo.churn
     churn                   VARCHAR(50)
 );
 GO
+
+-- 3. Bulk inserting the data into the source table
+
+/*
+As I'm using docker alongside SQL Server, I need to upload the file to the docker container beforehand in powershell:
+> docker exec sqlserver mkdir -p /var/opt/mssql/raw_data
+> docker cp "C:\path\to\Customer_Churn.csv" sqlserver:/var/opt/mssql/raw_data/customer_churn.csv
+> docker exec sqlserver chmod -R 755 /var/opt/mssql/raw_data
+*/
+
+TRUNCATE TABLE dbo.churn;
+GO
+
+BULK INSERT dbo.churn
+FROM '/var/opt/mssql/raw_data/customer_churn.csv'
+WITH (
+    FIRSTROW = 2,
+    FIELDTERMINATOR = ',',
+    ROWTERMINATOR = '0x0d0a',
+    TABLOCK
+);
+GO
+
+-- 4. Conducting sanity check to see if all data is uploaded properly
+
+SELECT COUNT(*) AS churn_rows FROM dbo.churn; -- needs to return 3150 rows
+
+SELECT TOP 5 * FROM dbo.churn; -- needs to return all 16 columns
