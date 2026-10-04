@@ -211,5 +211,58 @@ WHERE table_name = 'churn_staging'
 
 -- Data type change was successful
 
--- 6. Checking for duplicates values
+-- 6. Adding index column to the staging table (primary key)
 
+ALTER TABLE dbo.churn_staging
+ADD id INT IDENTITY(1,1) NOT NULL;
+GO
+
+ALTER TABLE dbo.churn_staging
+ADD CONSTRAINT PK_churn_staging PRIMARY KEY (id);
+GO
+
+SELECT TOP 5 * FROM dbo.churn_staging ORDER BY id;
+
+-- 7. Checking for duplicates values
+
+-- string column name
+
+SELECT STRING_AGG(column_name, ', ') WITHIN GROUP (ORDER BY ordinal_position) AS columns
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE table_name = 'churn_staging';
+
+WITH RankedRecords AS(
+    SELECT *,
+            ROW_NUMBER() OVER(
+                PARTITION BY call_failure, complains, subscription_length, charge_amount, seconds_of_use, frequency_of_use, frequency_of_sms, distinct_called_numbers, age_group, tariff_plan, [status], age, customer_value, fn, fp, churn
+                ORDER BY customer_value DESC
+            ) AS row_num
+    FROM dbo.churn_staging
+)
+SELECT *
+FROM RankedRecords
+WHERE row_num > 1;
+
+-- 300 duplicates identified overall
+
+-- 8. Deleting duplicates
+
+-- creating a new staging table
+
+SELECT *
+INTO dbo.churn_staging_deduped
+FROM dbo.churn_staging
+
+-- deleting identified records
+
+WITH RankedRecords AS(
+    SELECT *,
+            ROW_NUMBER() OVER(
+                PARTITION BY call_failure, complains, subscription_length, charge_amount, seconds_of_use, frequency_of_use, frequency_of_sms, distinct_called_numbers, age_group, tariff_plan, [status], age, customer_value, fn, fp, churn
+                ORDER BY customer_value DESC
+            ) AS row_num
+    FROM dbo.churn_staging_deduped
+)
+DELETE
+FROM RankedRecords
+WHERE row_num > 1;
